@@ -10,6 +10,9 @@ The following code block allows you to setup a [virtual environment](https://doc
 poetry install
 ```
 
+## Preparation
+
+
 ## Developing
 ```bash
 poetry shell

@@ -1,18 +1,12 @@
 import hashlib
 import math
 import multiprocessing as mp
-import os
 import shutil
-import threading
-import time
-from collections import Counter, defaultdict
+import sys
 from functools import partial
-from itertools import combinations_with_replacement
+from pathlib import Path
 
-import numpy as np
-import pandas as pd
 from Bio import SeqIO
-from matplotlib import pyplot as plt
 
 # reduce AA sequence complexity using different set of in-vitro/silico properties
 # Reduction Encoding :
@@ -22,6 +16,8 @@ from matplotlib import pyplot as plt
 # RED4 : Hydrophobicity and charge; A = hydrophobic ; B = Hydrophilic : C = Charged
 # RED5 : Hydrophobicity and structure;  A = Hydrophilic ; B = Hydrophobic : C = Structural
 # RED6 : Hydrophobicity size and charge; A = Large and hydrophobic; B = small hydrophobic ; P = positive hydrophilic ; U = uncharged hydrophilic ; N = negative hydrophilic
+
+RESOURCES_DIR: Path = Path(__file__).parent.parent / "resources"
 
 reduction_dictionaries = {
     "A": ["A", "A", "B", "B", "B", "B"],  # Alanine
@@ -51,16 +47,16 @@ reduction_dictionaries = {
 reduce = 6
 
 # Database to be cleaned
-dirty_neg_file_name = "uniprot_neg_db.fasta"
-dirty_pos_file_name = "positive_db_nr.fasta"
+dirty_neg_file_name: Path = RESOURCES_DIR / "uniprot_neg_db.fasta"
+dirty_pos_file_name: Path = RESOURCES_DIR / "positive_db_nr.fasta"
 
 # Clean database containing peptides between 3 and 18 AA
-neg_fastas_file_name = "../resources/negative_db_size.fasta"
-pos_fastas_file_name = "../resources/positive_db_size.fasta"
+neg_fastas_file_name: Path = RESOURCES_DIR / "negative_db_size.fasta"
+pos_fastas_file_name: Path = RESOURCES_DIR / "positive_db_size.fasta"
 
 # Temporary directories for kmers
-neg_temp_path = "".join(os.getcwd() + "/kmr_neg_temp/")
-pos_temp_path = "".join(os.getcwd() + "/kmr_pos_temp/")
+neg_temp_path: Path = RESOURCES_DIR / "kmr_neg_temp"
+pos_temp_path: Path = RESOURCES_DIR / "kmr_pos_temp"
 
 
 def reduce_seq(sequence, RED_dict, r_dict=reduction_dictionaries):
@@ -130,7 +126,7 @@ def get_kmers(seq_record, reduce, path):
     Return a file with all descriptors
     """
     seq = seq_record.seq
-    with open("".join(path + f"result.kmr"), "a") as save:
+    with open("".join(path / "result.kmr"), "a") as save:
         size = min(len(seq), 5)
         if size <= 2:
             gap = 0
@@ -141,17 +137,17 @@ def get_kmers(seq_record, reduce, path):
             save.write("".join(str(kmer + "\n")))
 
 
-def setup_directory(dir_name):
-    if os.path.exists(dir_name):
+def setup_directory(dir_name: Path):
+    if dir_name.exists():
         answer = input(f"Found {dir_name}\nAre you sure that you want to delete it? [y, n]\n")
         if answer == "y":
             shutil.rmtree(dir_name)
             print(f"{dir_name} deleted.")
         else:
             print("Operation canceled")
-            os._exit(1)
+            sys.exit(1)
 
-    os.makedirs(dir_name)
+    dir_name.mkdir()
     print(f"Created {dir_name}")
 
 
@@ -176,7 +172,7 @@ def run(fastas, folder_path, name):
     print(f"[{name}] Finished running")
 
 
-def clean_database(db_file_name, clean_db_file_name):
+def clean_database(db_file_name: str, clean_db_file_name: str) -> None:
     print(f"Cleaning {db_file_name} to keep peptides between 3 and 18")
     multi_fasta = parse_fasta_file(db_file_name)
     multi_fasta_size = []
@@ -194,9 +190,9 @@ def clean_database(db_file_name, clean_db_file_name):
 
 def produce_scoring(neg_result_file_name, pos_result_file_name):
     print("Producing scoring")
-    with open(pos_temp_path + pos_result_file_name, "r") as pos:
+    with open(pos_temp_path / pos_result_file_name, "r") as pos:
         positive = pos.readlines()
-    with open(neg_temp_path + neg_result_file_name, "r") as neg:
+    with open(neg_temp_path / neg_result_file_name, "r") as neg:
         negative = neg.readlines()
 
     print("Starting to count the occurrences")
@@ -230,9 +226,10 @@ def produce_scoring(neg_result_file_name, pos_result_file_name):
 if __name__ == "__main__":
     print("Start selecting the peptides")
 
-    # Select peptides between 3 and 18 aa
-    clean_database(dirty_neg_file_name, neg_fastas_file_name)
-    clean_database(dirty_pos_file_name, pos_fastas_file_name)
+    if dirty_neg_file_name.exists() and dirty_pos_file_name.exists():
+        # Select peptides between 3 and 18 aa
+        clean_database(dirty_neg_file_name, neg_fastas_file_name)
+        clean_database(dirty_pos_file_name, pos_fastas_file_name)
 
     # Create directories for stocking descriptors
     setup_directory(neg_temp_path)
