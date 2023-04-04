@@ -19,7 +19,7 @@ from Bio import SeqIO
 
 RESOURCES_DIR: Path = Path(__file__).parent.parent / "resources"
 
-reduction_dictionaries = {
+REDUCTION_DICT = {
     "A": ["A", "A", "B", "B", "B", "B"],  # Alanine
     "C": ["B", "G", "A", "A", "A", "B"],  # Cysteine
     "D": ["B", "E", "C", "C", "A", "N"],  # Aspartic acid
@@ -44,7 +44,7 @@ reduction_dictionaries = {
     "J": ["B", "F", "C", "C", "A", "P"],  # un-usual amino-acid
 }
 # Reduction dictionary in use
-reduce = 6
+REDUCE_TARGET_INDEX = 6
 
 # Database to be cleaned
 dirty_neg_file_name: Path = RESOURCES_DIR / "uniprot_neg_db.fasta"
@@ -59,7 +59,7 @@ neg_temp_path: Path = RESOURCES_DIR / "kmr_neg_temp"
 pos_temp_path: Path = RESOURCES_DIR / "kmr_pos_temp"
 
 
-def reduce_seq(sequence, RED_dict, r_dict=reduction_dictionaries):
+def reduce_seq(sequence: str, reduction_index: int, reduction_dict: dict=REDUCTION_DICT) -> str:
     """transforms sequence using AA characteristics in proteins:
     __ Args __
     sequence (Seq): AA sequence in single letter codification
@@ -70,10 +70,9 @@ def reduce_seq(sequence, RED_dict, r_dict=reduction_dictionaries):
     """
     reduced_seq = ""
     for aa in sequence:
-        if aa not in r_dict.keys():
-            pass
-        else:
-            reduced_seq += r_dict[aa][RED_dict - 1]
+        if aa in reduction_dict.keys():
+            reduced_seq += reduction_dict[aa][reduction_index - 1]
+
     return reduced_seq
 
 
@@ -89,55 +88,53 @@ def hash_kmer(kmer):
     return hashed_kmer
 
 
-def gap_kmer(kmers):
+def gap_kmer(kmers: list[str]) -> set[str]:
     """
     Introduce gaps into the sequentially processed sequence
     """
-    k_gap = []
+    k_gap = set()
     for kmer in kmers:
-        for z in range(0, len(kmer)):
-            if kmer[z] != "_":
-                k_gap.append("".join(kmer[:z] + "_" + kmer[z + 1 :]))
-    return set(k_gap)
+        for i, aa in enumerate(kmer):
+            if aa != "_":
+                k_gap.add("".join(kmer[:i] + "_" + kmer[i + 1 :]))
+    return k_gap
 
 
-def find_kmer(sequence, kmer_size, ngap, reduce):
+def find_kmer(sequence: str, kmer_size: int, ngap: int, reduction_index: int | None) -> list[str]:
     """
     Find descriptors in the reduced peptide sequence
     """
-    kmers = []
-    if reduce != None:
-        sequence = reduce_seq(sequence, RED_dict=reduce)
+    kmers: list[str] = []
+
+    if isinstance(reduction_index, int):
+        sequence = reduce_seq(sequence, reduction_index=reduction_index)
     for i in range(len(sequence)):
         if i + kmer_size <= len(sequence):
-            kmers.append(sequence[i : i + kmer_size])
+            kmers.append(sequence[i: i + kmer_size])
 
-    current_kmers = kmers
-    for k in range(ngap):
-        current_kmers = gap_kmer(current_kmers)
+    current_kmers: list[str] = kmers
+    for j in range(ngap):
+        current_kmers: set[str] = gap_kmer(current_kmers)
         kmers += current_kmers
 
     # return [hash_kmer(kmer) for kmer in kmers]
     return kmers
 
 
-def get_kmers(seq_record, reduce, path):
-    """
-    Return a file with all descriptors
-    """
+def get_kmers(seq_record, reduction_index: int, path: Path) -> None:  # todo: What is `seq_record`?
     seq = seq_record.seq
-    with open("".join(path / "result.kmr"), "a") as save:
+    with open(path / "result.kmr", "a") as file:
         size = min(len(seq), 5)
         if size <= 2:
             gap = 0
         else:
             gap = size - 2
-        kmers = find_kmer(sequence=seq, kmer_size=size, ngap=gap, reduce=reduce)
+        kmers = find_kmer(sequence=seq, kmer_size=size, ngap=gap, reduction_index=reduction_index)
         for kmer in kmers:
-            save.write("".join(str(kmer + "\n")))
+            file.write("".join(str(kmer + "\n")))
 
 
-def setup_directory(dir_name: Path):
+def cleanup_directory(dir_name: Path) -> None:
     if dir_name.exists():
         answer = input(f"Found {dir_name}\nAre you sure that you want to delete it? [y, n]\n")
         if answer == "y":
@@ -151,18 +148,18 @@ def setup_directory(dir_name: Path):
     print(f"Created {dir_name}")
 
 
-def parse_fasta_file(file_name):
+def parse_fasta_file(file_name: Path) -> list:
     multi_fasta = [record for record in SeqIO.parse(file_name, "fasta")]
     print(f"Ended parsing of {file_name}")
     return multi_fasta
 
 
-def run(fastas, folder_path, name):
-    print(f"[{name}] Performing Gapped k-mer count on {len(fastas)} sequences; reduction = {reduce})")
+def create_descriptors(fastas: str, folder_path: Path, name: str) -> None:
+    print(f"[{name}] Performing Gapped k-mer count on {len(fastas)} sequences; reduction = {REDUCE_TARGET_INDEX})")
     pool = mp.Pool(processes=4)
 
     # map the analyze_sequence function to the sequences
-    main = partial(get_kmers, reduce=reduce, path=folder_path)
+    main = partial(get_kmers, reduction_index=REDUCE_TARGET_INDEX, path=folder_path)
     results = pool.map(main, fastas)
 
     # close the pool and wait for the worker processes to finish
@@ -174,7 +171,7 @@ def run(fastas, folder_path, name):
 
 def clean_database(db_file_name: str, clean_db_file_name: str) -> None:
     print(f"Cleaning {db_file_name} to keep peptides between 3 and 18")
-    multi_fasta = parse_fasta_file(db_file_name)
+    multi_fasta: list = parse_fasta_file(db_file_name)
     multi_fasta_size = []
     for fasta in multi_fasta:
         seq = fasta.seq
@@ -232,16 +229,14 @@ if __name__ == "__main__":
         clean_database(dirty_pos_file_name, pos_fastas_file_name)
 
     # Create directories for stocking descriptors
-    setup_directory(neg_temp_path)
-    setup_directory(pos_temp_path)
+    cleanup_directory(neg_temp_path)
+    cleanup_directory(pos_temp_path)
 
-    # Get list of fastas
-    neg_fastas = parse_fasta_file(neg_fastas_file_name)
-    pos_fastas = parse_fasta_file(pos_fastas_file_name)
+    neg_fastas: list = parse_fasta_file(neg_fastas_file_name)
+    pos_fastas: list = parse_fasta_file(pos_fastas_file_name)
 
-    # Create descriptors for each peptide
-    run(neg_fastas, neg_temp_path, "Negative peptides")
-    run(pos_fastas, pos_temp_path, "Positive peptides")
+    create_descriptors(neg_fastas, neg_temp_path, "Negative peptides")
+    create_descriptors(pos_fastas, pos_temp_path, "Positive peptides")
 
     # Compute score of descriptors
     produce_scoring("result.kmr", "result.kmr")
