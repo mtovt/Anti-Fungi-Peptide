@@ -22,11 +22,11 @@ isort = "*"
 
 [tool.taskipy.tasks]
 check = """
-isort lambda_function.py\
- && black lambda_function.py\
+isort peptide_design\
+ && black peptide_design\
  && poetry export -f requirements.txt | poetry run safety check --bare --stdin\
- && mypy  lambda_function.py\
- && pylint lambda_function.py
+ && mypy peptide_design\
+ && pylint peptide_design
 """
 
 [tool.black]
