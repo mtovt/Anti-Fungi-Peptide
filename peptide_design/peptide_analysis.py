@@ -1,50 +1,50 @@
-from Bio import SeqIO
-from Bio.SeqUtils.ProtParam import ProteinAnalysis 
-from Bio.SeqUtils import ProtParamData  # Local https://github.com/biopython/biopython/blob/master/Bio/SeqUtils/ProtParamData.py
-from Bio.SeqUtils import IsoelectricPoint  # Local
-from Bio.Seq import Seq
-from Bio.Data import IUPACData
-from Bio.SeqUtils import molecular_weight
+import math
+
 import helixvis
-import matplotlib.pyplot as plt 
+import matplotlib.pyplot as plt
 import numpy as np
 import pylab as P
-import math 
+from Bio import SeqIO
+from Bio.Data import IUPACData
+from Bio.Seq import Seq
+from Bio.SeqUtils import IsoelectricPoint  # Local
+from Bio.SeqUtils import (
+    ProtParamData,  # Local https://github.com/biopython/biopython/blob/master/Bio/SeqUtils/ProtParamData.py
+)
+from Bio.SeqUtils import molecular_weight
+from Bio.SeqUtils.ProtParam import ProteinAnalysis
 from scipy import signal
-from scipy.fft import fft, fftfreq, fftshift , rfft
-
-
+from scipy.fft import fft, fftfreq, fftshift, rfft
 
 multi_fasta = [record for record in SeqIO.parse("negative_db_size.fasta", "fasta")]
 
-for seq in multi_fasta : 
+for seq in multi_fasta:
     pa = ProteinAnalysis(str(seq.seq))
     print(pa)
     print(pa.secondary_structure_fraction()[0])
     print(pa.charge_at_pH(7))
-    print(pa.protein_scale(ProtParamData.es , 2, edge=1.0))
-    
+    print(pa.protein_scale(ProtParamData.es, 2, edge=1.0))
+
     hydropho = pa.protein_scale(ProtParamData.kd, 2, edge=1.0)
     size = len(hydropho)
-    #autocorrelation of signal 
-    x = np.array(hydropho) 
+    # autocorrelation of signal
+    x = np.array(hydropho)
     # Mean
     mean = np.mean(hydropho)
     # Variance
     var = np.var(hydropho)
     # Normalized data
     ndata = hydropho - mean
-    acorr = np.correlate(ndata, ndata, 'full')[len(ndata)-1:] 
+    acorr = np.correlate(ndata, ndata, "full")[len(ndata) - 1 :]
     acorr = acorr / var / len(ndata)
 
-     
-    plt.plot(range(len(hydropho)), acorr )
+    plt.plot(range(len(hydropho)), acorr)
 
-    
-wheel =helixvis.draw_wheel(str(seq.seq)) 
-plt.title('Auto-correlation of hydrophobicity in the peptides sequnces')
+
+wheel = helixvis.draw_wheel(str(seq.seq))
+plt.title("Auto-correlation of hydrophobicity in the peptides sequnces")
 plt.show()
-'''
+"""
 
 
 for seq in seqs :  
@@ -79,4 +79,4 @@ for seq in seqs :
  
 #wheel =helixvis.draw_wheel(seq)
 #plt.show()
- '''    
+ """
